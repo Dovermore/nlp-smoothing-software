@@ -1,0 +1,58 @@
+# Name, and save dir of this plot
+exp_name: roberta-base.ag-news.all.certified_volume_accuracy_plot
+output_root: outputs/plot_paper
+plot_type: certified_volume_accuracy
+log_volume: true
+
+
+# List of files
+certify_dirs:
+  - outputs/certify/roberta-base.ag-news.deletion_09
+  - outputs/certify/roberta-base.ag-news.masking_09
+
+# Legends to use for each table (can be ignored, file name without extension will be used instead)
+legends:
+  - CERT-ED,$p_\mathsf{del}=90\%$
+  - RanMASK,$p_\mathsf{mask}=90\%$
+
+threat_models:
+  - edit
+  - l0
+
+vocab_sizes:
+  - 50265
+  - 50265
+
+hues:
+  - CERT-ED
+  - RanMASK
+
+styles:
+  - 90
+  - 90
+
+sizes:
+  - CERT-ED
+  - RanMASK
+
+# Figure styling arguments
+fig_kwargs:
+  figsize: [3.34, 3.05]
+  layout: tight
+
+# Global rc params
+rcparams:
+  font.size: 8
+
+# Kwargs related to other plot options
+plot_kwargs:
+  legend_kwargs:
+    fontsize: 6
+    title_fontsize: 7
+    title: Model,perturbation strength
+    loc: lower center
+    ncol : 2
+    bbox_to_anchor: [0.5,1.0]
+    framealpha: 1
+
+title: null

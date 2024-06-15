@@ -1,0 +1,11 @@
+output_root: outputs/certify
+model_dir: outputs/train/roberta-base.ag-news.deletion_09
+pred_num_samples: 1000
+cr_num_samples: 4000
+cr_kwargs:
+  alpha: 0.05
+  threat_model: edit
+  stat_test: lecuyer
+sample_size: null
+
+load_df: True

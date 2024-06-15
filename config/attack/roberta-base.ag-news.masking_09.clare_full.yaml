@@ -1,0 +1,9 @@
+output_root: outputs/attack
+model_dir: outputs/train/roberta-base.ag-news.masking_09
+attack: CLARELi2020
+num_examples: 1000
+query_budget: 10000
+model_wrapper_args:
+  num_samples: 100
+  aggregation: hard
+  batch_size: 16

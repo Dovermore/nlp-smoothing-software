@@ -1,0 +1,19 @@
+# Experiment details
+output_root: outputs/train             # Directory to save the output results
+
+# Configuration for data loading and preparation
+dataset: 
+  path: ag_news                  # Specify either a HuggingFace dataset name or a custom dataset path. If custom, the path should point to a Python file that initializes the dataset in a HuggingFace-like manner.
+
+# Configuration for the optimizer
+optimizer: AdamW                   # Optimizer to use during training
+optimizer_args:                    # Arguments specific to the optimizer
+  lr: 2.0E-5                       # Learning rate
+
+# Model configuration
+model:
+  type: roberta-base             # Model type (e.g., 'roberta-base' refers to the base RoBERTa model)
+
+# Configuration for certification
+perturbation: Base           # Type of perturbation applied for certification
+num_samples: 1

@@ -1,0 +1,6 @@
+output_root: outputs/certify
+model_dir: outputs/train/roberta-base.ag-news.base
+pred_num_samples: 1
+cr_num_samples: 1
+cr_kwargs: {}
+sample_size: null

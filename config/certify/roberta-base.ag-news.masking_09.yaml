@@ -1,0 +1,9 @@
+output_root: outputs/certify
+model_dir: outputs/train/roberta-base.ag-news.masking_09
+pred_num_samples: 1000
+cr_num_samples: 4000
+cr_kwargs:
+  alpha: 0.05
+  stat_test: cohen
+batch_size: 16
+sample_size: null

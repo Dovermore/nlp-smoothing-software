@@ -1,0 +1,8 @@
+output_root: outputs/attack
+model_dir: outputs/train/roberta-base.ag-news.deletion_09
+attack: DeepWordBugGao2018
+num_examples: 1000
+model_wrapper_args:
+  num_samples: 100
+  aggregation: hard
+  batch_size: 32

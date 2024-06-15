@@ -1,0 +1,8 @@
+output_root: outputs/attack
+model_dir: outputs/train/roberta-base.ag-news.base
+attack: BAEInsertGarg2019
+num_examples: 1000
+model_wrapper_args:
+  num_samples: 1
+  aggregation: soft
+  batch_size: 1
