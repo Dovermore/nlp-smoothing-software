@@ -1,7 +1,7 @@
 """
-CERTified Edit Distance defense (CERT-ED) authors authored this file
+CERTified Edit Distance defense (CERT-ED) authors edited this file
 
-ChatGPT and/or Copilot are used in generating scaffolding code for this file
+Some codes are from the RS-Del code repository
 """
 from dataclasses import asdict, dataclass
 from typing import List, Union

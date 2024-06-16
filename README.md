@@ -112,7 +112,10 @@ This project is licensed under the MIT License - see the [LICENSE.md](LICENSE.md
 We would like to recognize the contributions of AI writing assistants, particularly ChatGPT and GitHub Copilot, in the development of this project. These tools offered valuable suggestions and helped generate initial code frameworks. However, the concepts and structure of the project remain our original work and were not directly shaped by AI-generated content. We are grateful for the role these tools played in accelerating the writing process and improving the overall quality of the project.
 
 Additionally, we acknowledge the inclusion of modified versions of source codes from the following repositories:
+
 - [TextAttack](https://github.com/QData/TextAttack) (for libraries in `libs/TextAttack`)
 - [TextCRS](https://github.com/Eyr3/TextCRS) (for the BAE insertion attack recipe)
+- [RS-Del](https://github.com/Dovermore/randomized-deletion) (For some Randomized Deletion codes)
+- [RanMASK](https://github.com/zjiehang/RanMASK) (For Masking related codes)
 
 We follow their respective licenses in utilizing and modifying their codebases.

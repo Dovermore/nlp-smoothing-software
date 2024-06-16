@@ -1,5 +1,5 @@
 """
-Certified Robustness to Text Adversarial Attacks by Randomized [MASK] authors authored this file.
+Certified Robustness to Text Adversarial Attacks by Randomized [MASK] authors authored functions in this file.
 """
 from typing import List
 
