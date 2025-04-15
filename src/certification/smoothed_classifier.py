@@ -1,8 +1,3 @@
-"""
-CERTified Edit Distance defense (CERT-ED) authors edited this file
-
-Some codes are from the RS-Del code repository
-"""
 from dataclasses import asdict, dataclass
 from typing import List, Union
 

@@ -1,17 +1,11 @@
-"""
-CERTified Edit Distance defense (CERT-ED) authors authored this file
-
-ChatGPT and/or Copilot are used in generating scaffolding code for this file
-"""
 import argparse
 import logging
 import warnings
 
-from certify import certify_model
-from train import train_model
-from visualization import plot_figure
 from config_loader import load_config
-from attack import attack_model
+
+import datasets
+import transformers
 
 
 def parse_args():
@@ -20,7 +14,12 @@ def parse_args():
     )
     parser.add_argument(
         "--mode",
-        choices=["train", "certify", "plot", "attack"],
+        choices=[
+            "train",
+            "certify",
+            "optimize_rate",
+            "plot",
+        ],
         required=True,
         help="Whether to train or certify the model",
     )
@@ -56,11 +55,14 @@ def parse_args():
     args = parser.parse_args()
     return args
 
+
 def redirect_logging(config, log_level):
     logger = logging.getLogger()
     logger.setLevel(getattr(logging, log_level))
 
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    formatter = logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
 
     stdout_handler = logging.FileHandler(config["stdout_log"], mode="a")
     stdout_handler.setLevel(logging.INFO)
@@ -76,15 +78,23 @@ def redirect_logging(config, log_level):
 def main():
     args = parse_args()
     if args.ignore_transformers_warnings:
-        import transformers
-        import datasets
         transformers.logging.set_verbosity_error()
         datasets.logging.set_verbosity_error()
 
     if args.ignore_seaborn_warnings:
-        warnings.filterwarnings("ignore", category=FutureWarning, module='seaborn._oldcore')
+        warnings.filterwarnings(
+            "ignore", category=FutureWarning, module="seaborn._oldcore"
+        )
 
-    config = load_config(config_path=args.config_path, mode=args.mode, save=True, safe=not args.override_config)
+    # disable huggingface logging
+    datasets.disable_progress_bar()
+
+    config = load_config(
+        config_path=args.config_path,
+        mode=args.mode,
+        save=True,
+        safe=not args.override_config,
+    )
     redirect_logging(config, args.log_level)
 
     # Print line separator in both log files
@@ -94,12 +104,19 @@ def main():
     logging.error(separator_line)
 
     if args.mode == "train":
+        from train import train_model
         train_model(config)
+    elif args.mode == "optimize_rate":
+        from optimize_rate import optimize_rate
+        optimize_rate(config)
     elif args.mode == "certify":
+        from certify import certify_model
         certify_model(config)
     elif args.mode == "plot":
+        from visualization import plot_figure
         plot_figure(config)
     elif args.mode == "attack":
+        from attack import attack_model
         attack_model(config)
     else:
         raise ValueError(f"Invalid mode: {args.mode}")

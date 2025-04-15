@@ -1,6 +1,4 @@
 """
-CERTified Edit Distance defense (CERT-ED) authors authored this file
-
 ChatGPT and/or Copilot are used in generating scaffolding code for this file
 """
 import csv
@@ -22,7 +20,7 @@ import torch
 from bs4 import BeautifulSoup
 from datasets import ClassLabel
 from datasets import Dataset as HuggingFaceDataset
-from datasets import DatasetDict
+from datasets import DatasetDict, Features, Value
 from datasets import load_dataset as huggingface_load_dataset
 from torch.utils.data import DataLoader, Dataset
 from transformers import (
@@ -31,10 +29,12 @@ from transformers import (
     get_linear_schedule_with_warmup,
 )
 
+from augmenter import augmenters
 from certification import (
     PerturbationTokenizer,
     SmoothedClassifierWrapper,
     perturbation_tokenizers,
+    VarDelOptim,
 )
 
 
@@ -144,8 +144,12 @@ def load_model(config, device, num_labels=2):
 
 def load_perturbation_tokenizer(config):
     perturbation_class = perturbation_tokenizers[config["perturbation"]]
+    perturbation_args = config.get("perturbation_args", {})
+    if issubclass(perturbation_class, VarDelOptim):
+        perturbation_args["agent_dir"] = os.path.join(config.get("output_dir"), "agent")
+        os.makedirs(perturbation_args["agent_dir"], exist_ok=True)
     perturbation_tokenizer = perturbation_class(
-        tokenizer=config["model"]["type"], **config.get("perturbation_args", {})
+        tokenizer=config["model"]["type"], **perturbation_args
     )
     return perturbation_tokenizer
 
@@ -242,6 +246,16 @@ def load_scheduler(config, optimizer, total_steps=None):
     return None
 
 
+def load_augmenter(config, tokenizer, model, loss):
+    if config.get("augmenter", None) is None:
+        return None
+
+    augmenter_class = augmenters[config["augmenter"]]
+    return augmenter_class(
+        tokenizer=tokenizer, model=model, loss=loss, **config.get("augmenter_args", {})
+    )
+
+
 def load_components(config):
     device = get_device(config["use_gpu"])
     train_data = load_dataset(**config["dataset"])["train"]
@@ -268,7 +282,10 @@ def load_components(config):
     )
     optimizer = load_optimizer(config, model)
     grad_scaler = load_grad_scaler(config, perturbation_tokenizer)
-    loss_function = torch.nn.CrossEntropyLoss().to(device)
+    loss = torch.nn.CrossEntropyLoss().to(device)
+    augmenter = load_augmenter(
+        config, tokenizer=perturbation_tokenizer, model=model, loss=loss
+    )
 
     if "load_checkpoint" in config:
         checkpoint = load_checkpoint(config)
@@ -315,10 +332,11 @@ def load_components(config):
         "perturbation_tokenizer": perturbation_tokenizer,
         "model": model,
         "smoothed_model": smoothed_model,
+        "augmenter": augmenter,
         "optimizer": optimizer,
         "scheduler": scheduler,
         "grad_scaler": grad_scaler,
-        "loss_function": loss_function,
+        "loss_function": loss,
         "train_loader": train_loader,
         "valid_loader": valid_loader,
         "test_loader": test_loader,
@@ -328,6 +346,7 @@ def load_components(config):
         "num_labels": num_labels,
         "device": device,
         "checkpoint": checkpoint,
+        "rng": np.random.default_rng(config["seed"]),
     }
 
 
@@ -431,6 +450,11 @@ def load_dataset(path, download=False, *args, **kwargs):
         train_dataset = load_attacked_csv_dataset(path, *args, **kwargs)
         test_dataset = load_attacked_csv_dataset(path, *args, **kwargs)
         return DatasetDict({"train": train_dataset, "test": test_dataset})
+    elif "debug.csv" in path:
+        train_dataset = test_dataset = load_csv_dataset(
+            os.path.join(dataset_path, "debug.csv")
+        )
+        return DatasetDict({"train": train_dataset, "test": test_dataset})
     else:
         return huggingface_load_dataset(path, *args, **kwargs)
 
@@ -469,10 +493,29 @@ def load_attacked_csv_dataset(path, perturbed):
 
 
 def load_csv_dataset(path):
+    # Load the CSV into a dictionary
     data = pd.read_csv(path).to_dict(orient="list")
-    num_classes = len(set(data["label"]))
+
+    # Determine the number of unique classes and their names
+    unique_labels = sorted(set(data["label"]))
+    num_classes = len(unique_labels)
+
+    # Create the Hugging Face dataset
     dataset = HuggingFaceDataset.from_dict(data)
-    dataset.features["label"] = ClassLabel(num_classes=num_classes)
+
+    # Define the full schema with ClassLabel for the 'label' column
+    features = Features(
+        {
+            "text": Value("string"),  # Assuming the text column contains string data
+            "label": ClassLabel(
+                num_classes=num_classes, names=[str(label) for label in unique_labels]
+            ),
+        }
+    )
+
+    # Cast the dataset with the new features
+    dataset = dataset.cast(features)
+
     return dataset
 
 
@@ -552,6 +595,27 @@ def combln(n, k) -> float:
     return sp.gammaln(n + 1) - sp.gammaln(k + 1) - sp.gammaln(n - k + 1)
 
 
+def logminusexp(x, y):
+    """
+    Computes log(exp(x) - exp(y)) in a numerically stable way.
+
+    Args:
+        x (float): log of the first value.
+        y (float): log of the second value (should be <= x to avoid negative results).
+
+    Returns:
+        float: The log of the difference between exp(x) and exp(y).
+
+    Raises:
+        ValueError: If x <= y, as this would result in the log of a negative number.
+    """
+    if x <= y:
+        raise ValueError("Cannot compute log of a negative number. Ensure x > y.")
+    if y == -np.inf:
+        return x
+    return x + np.log1p(-np.exp(y - x))
+
+
 def edit_distance_volume(radius, input_size, vocab_size, log=False):
     if log:
         log_out = -np.inf
@@ -568,7 +632,7 @@ def edit_distance_volume(radius, input_size, vocab_size, log=False):
             inner = 0
             for j in range(i - radius, radius + 1):
                 inner += sp.comb(input_size + j, i, exact=True)
-            out += ((vocab_size - 1)**i) * inner
+            out += ((vocab_size - 1) ** i) * inner
         return out
 
 
@@ -576,10 +640,174 @@ def l0_distance_volume(radius, input_size, vocab_size, log=False):
     if log:
         log_out = -np.inf
         for i in range(radius + 1):
-            log_out = np.logaddexp(log_out, combln(input_size, i) + i * np.log(vocab_size - 1))
+            log_out = np.logaddexp(
+                log_out, combln(input_size, i) + i * np.log(vocab_size - 1)
+            )
         return log_out / np.log(10)
     else:
         out = 0
         for i in range(radius + 1):
-            out += sp.comb(input_size, i) * (vocab_size - 1)**radius
+            out += sp.comb(input_size, i) * (vocab_size - 1) ** radius
         return out
+
+
+def ternary_search(f, low, high, tolerance=1e-3, log_results=False):
+    """
+    Perform ternary search to find the maximum value of a unimodal function.
+
+    Args:
+        f (function): The unimodal function to optimize. It should return a tuple for comparison.
+        low (float or int): The lower bound of the search range.
+        high (float or int): The upper bound of the search range.
+        tolerance (float): The stopping criterion for continuous search.
+        log_results (bool): Whether to log search results for caching.
+
+    Returns:
+        tuple: (best_value, best_result, log_df), where
+            best_value is the input value that optimizes f,
+            best_result is the corresponding result tuple of f,
+            log_df (optional) is a pandas DataFrame containing search details if log_results is True.
+    """
+    log_data = [] if log_results else None
+    best_value, best_result = None, None
+
+    while high - low > tolerance:
+        m1 = low + (high - low) / 3
+        m2 = high - (high - low) / 3
+
+        r1 = f(m1)  # Expect a tuple
+        r2 = f(m2)  # Expect a tuple
+
+        # Update the best value and result
+        if (
+            best_result is None
+            or r1 > best_result
+            or (r1 == best_result and m1 < best_value)
+        ):
+            best_value, best_result = m1, r1
+        if r2 > best_result or (r2 == best_result and m2 < best_value):
+            best_value, best_result = m2, r2
+
+        # Compare tuples left to right with tie-breaking
+        if r1 > r2 or (r1 == r2 and m1 < m2):
+            high = m2
+        else:
+            low = m1
+
+        log_data.append(
+            {"low": low, "high": high, "m1": m1, "fm1": r1, "m2": m2, "fm2": r2}
+        )
+    log_df = pd.DataFrame(log_data)
+    if log_results:
+        return best_value, best_result, log_df
+    return best_value, best_result
+
+
+def golden_section_search(f, low, high, tolerance=0.5, log_results=False):
+    """
+    Golden-section search with verbose logging and dynamic tracking of the best value.
+
+    Given a function f with a single local maximum in the interval [low, high],
+    golden_section_search_verbose returns the value that maximizes f
+    within a given tolerance, with optional logging of intermediate steps.
+
+    Args:
+        f (function): The unimodal function to optimize. It should return a tuple for comparison.
+        low (float): The lower bound of the search range.
+        high (float): The upper bound of the search range.
+        tolerance (float): The stopping criterion for continuous search.
+        log_results (bool): Whether to include the log in the return value.
+
+    Returns:
+        tuple: (best_value, best_result[, log_df]), where
+            best_value is the input value that maximizes f,
+            best_result is the corresponding result tuple of f,
+            log_df (optional) is a pandas DataFrame containing search details if log_results is True.
+
+    Example:
+        >>> def f(x): return (-x**2 + 4, x/2)
+        >>> best_value, best_result, log_df = golden_section_search_verbose(f, low=0, high=4, tolerance=1e-3, log_results=True)
+        >>> print(best_value, best_result)
+        >>> print(log_df.head())
+    """
+    # Compute constants for golden ratio
+    invphi = (np.sqrt(5) - 1) / 2  # 1 / phi
+    invphi2 = (3 - np.sqrt(5)) / 2  # 1 / phi^2
+
+    low, high = min(low, high), max(low, high)
+    h = high - low
+    if h <= tolerance:
+        mid_point = (low + high) / 2
+        log_data = []  # Always create the log structure
+        return (
+            (mid_point, f(mid_point), pd.DataFrame(log_data))
+            if log_results
+            else (mid_point, f(mid_point))
+        )
+
+    # Required steps to achieve tolerance
+    n = int(np.ceil(np.log(tolerance / h) / np.log(invphi)))
+
+    # Initialize points
+    m1 = low + invphi2 * h
+    m2 = low + invphi * h
+    r1 = f(m1)
+    r2 = f(m2)
+
+    # Initialize tracking for the best value and result
+    best_value = m1 if r1 > r2 else m2
+    best_result = r1 if r1 > r2 else r2
+
+    # Always initialize logging
+    log_data = []
+
+    # Perform the golden section search
+    for _ in range(n - 1):
+        # Log current state
+        log_data.append(
+            {
+                "low": low,
+                "high": high,
+                "m1": m1,
+                "r1": r1,
+                "m2": m2,
+                "r2": r2,
+                "best_value": best_value,
+                "best_result": best_result,
+            }
+        )
+
+        h *= invphi
+        if r1 > r2:  # Maximize f, so compare r1 > r2
+            high, m2, r2 = m2, m1, r1
+            m1 = low + invphi2 * h
+            r1 = f(m1)
+        else:
+            low, m1, r1 = m1, m2, r2
+            m2 = low + invphi * h
+            r2 = f(m2)
+
+        # Update best value and result dynamically
+        if r1 > best_result or (r1 == best_result and m1 < best_value):
+            best_value, best_result = m1, r1
+        if r2 > best_result or (r2 == best_result and m2 < best_value):
+            best_value, best_result = m2, r2
+
+    # Final logging after loop
+    log_data.append(
+        {
+            "low": low,
+            "high": high,
+            "m1": m1,
+            "r1": r1,
+            "m2": m2,
+            "r2": r2,
+            "best_value": best_value,
+            "best_result": best_result,
+        }
+    )
+
+    if log_results:
+        log_df = pd.DataFrame(log_data)
+        return best_value, best_result, log_df
+    return best_value, best_result

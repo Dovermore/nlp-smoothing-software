@@ -2,8 +2,20 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## 📝 Abstract
-With the growing integration of AI in daily life, ensuring the robustness of systems to inference-time attacks is crucial. Among the approaches for certifying robustness to such adversarial examples, randomized smoothing has emerged as highly promising due to its nature as a wrapper around arbitrary black-box models. Previous work on randomized smoothing in natural language processing has primarily focused on specific subsets of edit distance operations, such as synonym substitution or word insertion, without exploring the certification of all edit operations. In this paper, we adapt Randomized Deletion (Huang et al., 2023) and propose CERTified Edit Distance defense (CERT-ED) for natural language classification. Through comprehensive experiments, we demonstrate that CERT-ED outperforms the existing Hamming distance method RanMASK (Zeng et al., 2023) in 4 out of 5 datasets in terms of both accuracy and the cardinality of the certificate. By covering various threat models, including 5 direct and 5 transfer attacks, our method improves empirical robustness in 38 out of 50 settings. This work is submitted to ACL 2024 June rolling review.
+## 📝 Overview
+
+This repository contains implementations and experiments for **CERT-ED** and **AdaptDel** — two methods for certified robustness against edit distance perturbations in NLP classification.
+
+- **CERT-ED: Certifiably Robust Text Classification for Edit Distance**
+
+  - **Abstract:** With the growing integration of AI in daily life, ensuring the robustness of systems to inference-time attacks is crucial. Among the approaches for certifying robustness to such adversarial examples, randomized smoothing has emerged as highly promising due to its nature as a wrapper around arbitrary black-box models. Previous work on randomized smoothing in natural language processing has primarily focused on specific subsets of edit distance operations, such as synonym substitution or word insertion, without exploring the certification of all edit operations. In this paper, we adapt Randomized Deletion (Huang et al., 2023) and propose CERTified Edit Distance defense (CERT-ED) for natural language classification. Through comprehensive experiments, we demonstrate that CERT-ED outperforms the existing Hamming distance method RanMASK (Zeng et al., 2023) in 4 out of 5 datasets in terms of both accuracy and the cardinality of the certificate. By covering various threat models, including 5 direct and 5 transfer attacks, our method improves empirical robustness in 38 out of 50 settings.
+  - Accepted at *Findings of the Association for Computational Linguistics: EMNLP 2024*.
+
+- **AdaptDel: Adaptable Deletion Rate Randomized Smoothing for Certified Robustness**
+
+  - **Abstract:** We consider the problem of certified robustness for sequence classification against edit distance perturbations. Naturally occurring inputs of varying lengths (e.g., sentences in NLP tasks) present a challenge to current methods that employ fixed-rate deletion mechanisms, leading to suboptimal performance. To this end, we introduce AdaptDel—methods with adaptable deletion rates that dynamically adjust based on input properties. We extend the theoretical framework of randomized smoothing to variable-rate deletion, ensuring sound certification with respect to edit distance. We achieve strong empirical results in natural language tasks, observing up to 30 orders of magnitude improvement in the median cardinality of the certified region over state-of-the-art certifications.
+
+  - Under review at *International Conference on Machine Learning (ICML) 2025*.
 
 ---
 
@@ -22,18 +34,21 @@ With the growing integration of AI in daily life, ensuring the robustness of sys
 ├── scripts                           # Shell scripts for running various steps
 │   ├── attack-roberta.sh             # Sample script for running attacks on the Roberta model
 │   ├── certify-roberta.sh            # Sample script for running certification on the Roberta model
+│   ├── certify-vardel.sh             # Sample script for running certification with variable deletion
 │   ├── plot.sh                       # Sample script for plotting the certified results
+│   ├── plot-vardel.sh                # Sample script for plotting variable deletion results
 │   └── train-roberta.sh              # Sample script for training the Roberta model
+│   └── train-vardel.sh               # Sample script for training with variable deletion
 ├── src                               # Source code directory
 │   ├── adv_attack                    # Package for adversarial attack implementations
-│   │   └── Various attack scripts (e.g., BAE, CLARE, Fast BERT) 
+│   │   └── Various attack scripts (e.g., BAE (need to retrieve from TextCRS repo), CLARE, Fast BERT)
 │   ├── certification                 # Package for certification mechanisms and utilities
-│   │   └── Various certification scripts (e.g., edit_certs, masking_mech, smoothed_classifier) 
+│   │   └── Various certification scripts (e.g., var_del_mech, edit_certs, masking_mech, smoothed_classifier)
 │   ├── attack.py                     # Main script for performing attacks, called by main.py
 │   ├── certify.py                    # Main script for the certification process, called by main.py
-│   ├── main.py                       # Main entry point for training, certifying, plotting, and attacking
+│   ├── main.py                       # Main entry point for training, certification, plotting, and attacks
 │   ├── train.py                      # Script for training models, called by main.py
-│   └── visualization.py              # Script for visualization tasks, called by main.py
+│   └── visualization.py             # Script for visualization tasks, called by main.py
 
 ```
 
@@ -51,48 +66,72 @@ pipenv install
 
 ### 1. **Model Training**
 
-- Train the smoothed model via `main.py` with `--mode train`.
-- Example: See `scripts/train-roberta.sh`.
+Train the smoothed model via `main.py` with `--mode train`.
 
 ```bash
 pipenv run python main.py --mode train --config_path config/train/$CONFIG_FILE.yaml --override_config
 ```
 
+Examples:
+- `scripts/train-roberta.sh`
+- `scripts/train-vardel.sh`
+
 ### 2. **Prediction and Certification**
 
-- Save base model confidence scores and compute the certified radius via `main.py` with `--mode certify`.
-- Example: See `scripts/certify-roberta.sh`.
+Save base model confidence scores and compute the certified radius via `main.py` with `--mode certify`.
 
 ```bash
 pipenv run python main.py --mode certify --config_path config/certify/$CONFIG_FILE.yaml --override_config
 ```
 
+Examples:
+- `scripts/certify-roberta.sh`
+- `scripts/certify-vardel.sh`
+
 ### 3. **Adversarial Attack**
 
-- Run adversarial attacks on the model via `main.py` with `--mode attack`.
-- Example: See `scripts/attack-roberta.sh`.
+Run adversarial attacks on the model via `main.py` with `--mode attack`.
 
 ```bash
 pipenv run python main.py --mode attack --config_path config/attack/$CONFIG_FILE.yaml --override_config
 ```
 
-### 4. **Visualization**
+Example:
+- `scripts/attack-roberta.sh`
 
-- Generate certified accuracy visualizations for the results via `main.py` with `--mode plot`.
+### 4. **Optimize Deletion Rates (AdaptDel+)**
+
+Perform golden section search to optimize AdaptDel+ rates via `main.py` with `--mode optimize_rate`.
+
+```bash
+pipenv run python main.py --mode optimize_rate --config_path config/optimize_rate/$CONFIG_FILE.yaml --override_config
+```
+
+Example:
+- `scripts/optimize-vardel.sh`
+
+### 5. **Visualization**
+
+Generate certified accuracy visualizations for the results via `main.py` with `--mode plot`.
 
 ```bash
 pipenv run python main.py --mode plot --config_path config/plot/$CONFIG_FILE.yaml --override_config
 ```
 
+Examples:
+- `scripts/plot.sh`
+- `scripts/plot-vardel.sh`
+
 ### Custom Experiments
 
-- You can customize and run your own experiments by defining your own configuration `.yaml` files. Place your custom configuration file in the appropriate `config` subdirectory (`train`, `certify`, `attack`, or `plot`), and use it with the respective command.
+You can customize and run your own experiments by defining your own configuration `.yaml` files. Place your configuration file in the appropriate `config` subdirectory (`train`, `certify`, `attack`, `optimize_rate`, or `plot`) and run:
 
 ```bash
 pipenv run python main.py --mode <mode> --config_path config/<subdir>/$YOUR_CUSTOM_CONFIG.yaml --override_config
 ```
 
-Replace `<mode>` with one of `train`, `certify`, `attack`, or `plot` and `<subdir>` with the corresponding subdirectory (`train`, `certify`, `attack`, `plot`).
+Replace `<mode>` with one of `train`, `certify`, `attack`, `optimize_rate`, or `plot`, and `<subdir>` with the corresponding config subdirectory.
+
 
 ## 📊 Datasets
 
@@ -113,8 +152,21 @@ We would like to recognize the contributions of AI writing assistants, particula
 Additionally, we acknowledge the inclusion of modified versions of source codes from the following repositories:
 
 - [TextAttack](https://github.com/QData/TextAttack) (for libraries in `libs/TextAttack`)
-- [TextCRS](https://github.com/Eyr3/TextCRS) (for the BAE insertion attack recipe)
 - [RS-Del](https://github.com/Dovermore/randomized-deletion) (For some Randomized Deletion codes)
 - [RanMASK](https://github.com/zjiehang/RanMASK) (For Masking related codes)
 
 We follow their respective licenses in utilizing and modifying their codebases.
+
+
+## 📧 Citation
+
+If you find this work useful, please consider citing our paper:
+
+```bibtex
+@inproceedings{huang2024cert,
+    title = "{CERT}-{ED}: Certifiably Robust Text Classification for Edit Distance",
+    author = "Huang, Zhuoqun  and Marchant, Neil G  and Ohrimenko, Olga  and Rubinstein, Benjamin I. P.",
+    booktitle = "Findings of the Association for Computational Linguistics: EMNLP 2024",
+    year = "2024",
+}
+```

@@ -1,8 +1,3 @@
-"""
-CERTified Edit Distance defense (CERT-ED) authors authored this file
-
-ChatGPT and/or Copilot are used in generating scaffolding code for this file
-"""
 import logging
 import os
 
@@ -13,6 +8,8 @@ import yaml
 TRAIN_DEFAULTS = {
     "use_gpu": True,
     "model": {"type": "roberta-base"},
+    "augmenter": None,
+    "augmenter_args": {},
     "optimizer": "AdamW",
     "optimizer_args": {"lr": 2e-5},
     "scheduler": "linear_schedule_with_warmup",
@@ -32,9 +29,23 @@ TRAIN_DEFAULTS = {
     "mask_grad_scale": None,
 }
 
+OPTIMIZE_RATE_DEFAULTS = {
+    "use_gpu": True,
+    "batch_size": 256,
+    "pred_num_samples": 32,
+    "pred_kwargs": {},
+    "cr_num_samples": 256, 
+    "cr_kwargs": {"alpha": 0.05},
+    "seed": 42,
+    "optim_size:": 200,
+    "certified_accuracy_threshold": 0.5,
+    "max_evals": 50,
+    "optim_split": "train",
+}
+
 CERTIFY_DEFAULTS = {
     "use_gpu": True,
-    "batch_size": 32,
+    "batch_size": 256,
     "pred_num_samples": 100,
     "pred_kwargs": {},
     "cr_num_samples": 1000, 
@@ -81,7 +92,7 @@ def save_yaml(data, path, safe=True):
         yaml.safe_dump(data, f)
 
 
-def load_config(config_path, mode, save=False, safe=True):
+def load_config(config_path, mode, save=False, safe=True, override_output=False):
     """General function to load configuration from YAML file."""
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
@@ -100,6 +111,8 @@ def load_config(config_path, mode, save=False, safe=True):
         post_train_load(config)
     elif mode == "certify":
         post_certify_load(config)
+    elif mode == "optimize_rate":
+        post_optimize_rate_load(config)
     elif mode == "plot":
         post_plot_load(config)
     elif mode == "attack":
@@ -126,6 +139,16 @@ def post_train_load(config):
     config["checkpoint_dir"] = os.path.join(config["output_dir"], "checkpoints")
     config["log_dir"] = os.path.join(config["output_dir"], "logs")
     set_defaults(config, TRAIN_DEFAULTS)
+
+
+def post_optimize_rate_load(config, load_checkpoint="best"):
+    """Post-load actions specific to certification configuration."""
+    # Set default and load model
+    set_defaults(config, OPTIMIZE_RATE_DEFAULTS)
+    model_config_path = os.path.join(config["model_dir"], "config.yaml")
+    config["model_config"] = load_config(model_config_path, mode="train", save=False)
+    config["model_config"]["load_checkpoint"] = load_checkpoint
+    return config
 
 
 def post_certify_load(config, load_checkpoint="best"):

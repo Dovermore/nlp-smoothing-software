@@ -1,6 +1,4 @@
 """
-CERTified Edit Distance defense (CERT-ED) authors authored this file
-
 ChatGPT and/or Copilot are used in generating scaffolding code for this file
 """
 from dataclasses import dataclass
@@ -188,3 +186,28 @@ def topk_ci(counts, alpha=0.05, k=2):
         lb, ub = proportion_confint(counts[idx], num_samples, alpha=alpha, method="beta")
         out.append((idx, lb, ub))
     return out
+
+
+def combln(n, k) -> float:
+    return gammaln(n + 1) - gammaln(k + 1) - gammaln(n - k + 1)
+
+
+def logminusexp(x, y):
+    """
+    Computes log(exp(x) - exp(y)) in a numerically stable way.
+    
+    Args:
+        x (float): log of the first value.
+        y (float): log of the second value (should be <= x to avoid negative results).
+    
+    Returns:
+        float: The log of the difference between exp(x) and exp(y).
+    
+    Raises:
+        ValueError: If x <= y, as this would result in the log of a negative number.
+    """
+    if x <= y:
+        raise ValueError("Cannot compute log of a negative number. Ensure x > y.")
+    if y == -np.inf:
+        return x
+    return x + np.log1p(-np.exp(y - x))

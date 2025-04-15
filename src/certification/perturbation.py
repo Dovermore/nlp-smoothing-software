@@ -1,8 +1,3 @@
-"""
-CERTified Edit Distance defense (CERT-ED) authors edited this file
-
-Some codes are from the RS-Del code repository
-"""
 from typing import Optional, Sequence, Tuple, TypeVar, Generic, List, Any
 
 from scipy.stats import binomtest
@@ -131,15 +126,19 @@ class PerturbationTokenizer(BasePerturbation[Any, BatchEncoding]):
             "perturb_tokens method must be implemented in a subclass."
         )
 
-    def __call__(self, input: str, *args, **kwargs) -> BatchEncoding:
+    def tokenize_input(self, input: str) -> Tokens:
         if self.tokenization == "tokenizer":
             tokens = self.tokenize(input)
         elif self.tokenization == "split":
-            tokens = input.split()
+            tokens = input.split(" ")
         elif self.tokenization == "char":
             tokens = list(input)
         else:
             raise ValueError(f"Unknown tokenization method: {self.tokenization}")
+        return tokens
+
+    def __call__(self, input: str, *args, **kwargs) -> BatchEncoding:
+        tokens = self.tokenize_input(input)
 
         if self.perturbation_on:
             tokens = self.perturb_tokens(tokens)
@@ -167,6 +166,9 @@ class PerturbationTokenizer(BasePerturbation[Any, BatchEncoding]):
 
     def decode(self, *args, **kwargs) -> str:
         return self.tokenizer.decode(*args, **kwargs)
+
+    def update_params(self, **kwargs):
+        pass
 
 
 class NullPerturbation(PerturbationTokenizer):

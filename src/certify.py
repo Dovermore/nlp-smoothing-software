@@ -1,11 +1,9 @@
 """
-CERTified Edit Distance defense (CERT-ED) authors authored this file
-
 ChatGPT and/or Copilot are used in generating scaffolding code for this file
 """
 import logging
 import os
-from math import ceil
+import warnings
 
 import pandas as pd
 import torch
@@ -24,17 +22,36 @@ def evaluate_batch(
     cr_num_samples=0,
     cr_kwargs: dict = {},
     batch_size=32,
+    warning_as_exception: bool=False,
 ):
     all_certified_predictions = []
     for text in inputs:
-        certified_prediction = smoothed_model.certify(
-            text=text,
-            pred_num_samples=pred_num_samples,
-            cr_num_samples=cr_num_samples,
-            batch_size=batch_size,
-            pred_kwargs=pred_kwargs,
-            cr_kwargs=cr_kwargs,
-        )
+        if warning_as_exception:
+            with warnings.catch_warnings():
+                # Convert all warnings to exceptions
+                warnings.simplefilter("error")
+                try:
+                    certified_prediction = smoothed_model.certify(
+                        text=text,
+                        pred_num_samples=pred_num_samples,
+                        cr_num_samples=cr_num_samples,
+                        batch_size=batch_size,
+                        pred_kwargs=pred_kwargs,
+                        cr_kwargs=cr_kwargs,
+                    )
+                except Warning as w:
+                    raise RuntimeError(
+                        f"A warning was encountered during computation: {str(w)}"
+                    )
+        else:
+            certified_prediction = smoothed_model.certify(
+                text=text,
+                pred_num_samples=pred_num_samples,
+                cr_num_samples=cr_num_samples,
+                batch_size=batch_size,
+                pred_kwargs=pred_kwargs,
+                cr_kwargs=cr_kwargs,
+            )
         all_certified_predictions.append(certified_prediction)
     return all_certified_predictions
 
@@ -50,6 +67,8 @@ def evaluate(
     device: torch.DeviceObjType = "cpu",
     checkpoint_interval: float = None,
     checkpoint_path: str = None,
+    verbose: int = 1,
+    warning_as_exception: bool=True,
 ):
     all_preds = []
     all_labels = []
@@ -69,6 +88,8 @@ def evaluate(
     )
     with torch.no_grad():
         tqdm_params = setup_tqdm(total=total, desc="Evaluation progress")
+        if verbose <= 0:
+            tqdm_params["disable"] = True
         with tqdm(**tqdm_params) as progress_bar:
             for data in data_dict:
                 text, label = data["text"], data["label"]
@@ -80,6 +101,7 @@ def evaluate(
                     cr_num_samples=cr_num_samples,
                     cr_kwargs=cr_kwargs,
                     batch_size=batch_size,
+                    warning_as_exception=warning_as_exception,
                 )
                 all_preds.append(preds[0])
                 all_labels.append(label)
@@ -167,18 +189,22 @@ def certify_model(config):
         ].to_numpy()
         inputs = df["input"].to_numpy()
         preds, pred_pvals, cr_preds, certified_radii = [], [], [], []
-        for input, pred_counts, cr_counts in zip(
-            inputs, pred_label_counts, cr_label_counts
-        ):
-            pred, pred_pval = perturbation_tokenizer.predict(
-                input, pred_counts, **config["pred_kwargs"]
-            )
-            cr_pred, certified_radius = perturbation_tokenizer.certified_radius(
-                input, cr_counts, **config["cr_kwargs"]
-            )
-            preds.append(pred), pred_pvals.append(pred_pval), cr_preds.append(
-                cr_pred
-            ), certified_radii.append(certified_radius)
+
+        tqdm_params = setup_tqdm(total=inputs.shape[0], desc="Cached certify progress")
+        with tqdm(**tqdm_params) as progress_bar:
+            for input, pred_counts, cr_counts in zip(
+                inputs, pred_label_counts, cr_label_counts
+            ):
+                pred, pred_pval = perturbation_tokenizer.predict(
+                    input, pred_counts, **config["pred_kwargs"]
+                )
+                cr_pred, certified_radius = perturbation_tokenizer.certified_radius(
+                    input, cr_counts, **config["cr_kwargs"]
+                )
+                preds.append(pred), pred_pvals.append(pred_pval), cr_preds.append(
+                    cr_pred
+                ), certified_radii.append(certified_radius)
+                progress_bar.update(1)
         df["pred"], df["pred_pval"], df["cr_pred"], df["certified_radius"] = (
             preds,
             pred_pvals,

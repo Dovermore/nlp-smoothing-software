@@ -1,8 +1,3 @@
-"""
-CERTified Edit Distance defense (CERT-ED) authors edited this file
-
-Some codes are from the RS-Del code repository
-"""
 from math import ceil, comb, nan
 from typing import Callable, Optional, Sequence
 
@@ -201,7 +196,7 @@ class MaskingMech(PerturbationTokenizer):
                     stat_test, valid_stat_tests
                 )
             )
-        num_chunks = len(input.split())
+        num_chunks = len(input.split(" "))
         num_mask = ceil(self.mask_fraction * num_chunks)
 
         # Handle file with no instructions

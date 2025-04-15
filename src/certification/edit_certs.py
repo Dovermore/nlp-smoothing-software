@@ -1,8 +1,3 @@
-"""
-CERTified Edit Distance defense (CERT-ED) authors edited this file
-
-Some codes are from the RS-Del code repository
-"""
 import numpy as np
 
 

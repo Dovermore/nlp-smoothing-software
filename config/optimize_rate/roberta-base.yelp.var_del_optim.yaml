@@ -1,0 +1,10 @@
+output_root: outputs/optimize-rate
+model_dir: outputs/train/roberta-base.yelp.var_del_optim
+pred_num_samples: 32
+cr_num_samples: 256
+cr_kwargs:
+  alpha: 0.05
+  threat_model: edit
+  stat_test: lecuyer
+optim_size: 200
+certified_accuracy_threshold: 0.4

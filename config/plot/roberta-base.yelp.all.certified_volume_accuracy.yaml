@@ -1,0 +1,75 @@
+# Name, and save dir of this plot
+exp_name: roberta-base.yelp.all.certified_volume_accuracy_plot
+output_root: outputs/plot_paper
+plot_type: certified_volume_accuracy
+log_volume: true
+
+
+# List of files
+certify_dirs:
+  - outputs/certify/roberta-base.yelp.deletion_09
+  - outputs/certify/roberta-base.yelp.masking_09
+  - outputs/certify/roberta-base.yelp.var_del_len_13_090
+  - outputs/certify/roberta-base.yelp.var_del_optim
+
+# Legends to use for each table (can be ignored, file name without extension will be used instead)
+legends:
+  - CERT-ED,$p_\mathsf{del}\!=\!90\%$
+  - RanMASK,$p_\mathsf{mask}\!=\!90\%$
+  - AdapDel,$p_\mathsf{lb}\!=\!90\%$
+  - AdapDel+
+
+hues:
+  - RanDEL
+  - RanMASK
+  - VarDelLb
+  - VarDelOptim
+
+styles:
+  - 90
+  - 90
+  - 90
+  - optim
+
+sizes:
+  - RanDEL
+  - RanMASK
+  - VarDelLb
+  - VarDelOptim
+
+# List of files
+threat_models:
+  - edit
+  - l0
+  - edit
+  - edit
+
+vocab_sizes:
+  - 50265
+  - 50265
+  - 50265
+  - 50265
+
+# Figure styling arguments
+fig_kwargs:
+  figsize: [2.22, 2.02]
+  layout: tight
+
+# Global rc params
+rcparams:
+  font.size: 7
+
+# Kwargs related to other plot options
+plot_kwargs:
+  legend_kwargs:
+    fontsize: 5.5
+    title_fontsize: 6
+    title: Model,perturbation strength
+    loc: upper right
+    ncol : 1
+    bbox_to_anchor: [1,1]
+    framealpha: 1
+  y_lim: [0, 0.6]
+  threshold_to: 100
+
+title: null

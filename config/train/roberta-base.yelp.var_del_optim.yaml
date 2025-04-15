@@ -1,0 +1,21 @@
+# Experiment details
+output_root: outputs/train             # Directory to save the output results
+
+# Configuration for data loading and preparation
+dataset: 
+  path: Yelp/yelp_review_full                  # Specify either a HuggingFace dataset name or a custom dataset path. If custom, the path should point to a Python file that initializes the dataset in a HuggingFace-like manner.
+
+# Configuration for the optimizer
+optimizer: AdamW                   # Optimizer to use during training
+optimizer_args:                    # Arguments specific to the optimizer
+  lr: 2.0E-5                       # Learning rate
+
+# Model configuration
+model:
+  type: roberta-base             # Model type (e.g., 'roberta-base' refers to the base RoBERTa model)
+
+# Configuration for certification
+perturbation: VarDelOptim           # Type of perturbation applied for certification
+perturbation_args:                 # Arguments specific to the perturbation
+  bins: [28, 55, 82, 108, 135, 162, 189, 216, 243, 270, 296, 323, 350, 377, 404, 431, 457, 484, 511, 538, 565, 592, 619, 645, 672, 699, 726, 753, 780, 833, 887, 941]
+  tokenization: split

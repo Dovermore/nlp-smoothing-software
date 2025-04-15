@@ -1,6 +1,4 @@
 """
-CERTified Edit Distance defense (CERT-ED) authors authored this file
-
 ChatGPT and/or Copilot are used in generating scaffolding code for this file
 """
 import logging
@@ -16,49 +14,78 @@ from certify import evaluate
 from utils import remove_oldest_files, load_components, setup_tqdm
 
 
-def train_batch(batch, model, loss, optimizer, scheduler, grad_scaler, device):
-    inputs, attention_masks, labels = (
-        batch["input_ids"],
-        batch["attention_mask"],
-        batch["labels"],
-    )
-    inputs, attention_masks, labels = (
-        inputs.to(device),
-        attention_masks.to(device),
-        labels.to(device),
-    )
+def train_batch(batch, model, loss, optimizer, scheduler, grad_scaler):
+    if "input_ids" in batch:
+        inputs, attention_mask, labels = (
+            batch["input_ids"],
+            batch["attention_mask"],
+            batch["labels"],
+        )
+        outputs = model(inputs, attention_mask=attention_mask)
+    elif "embeddings" in batch:
+        embeddings, attention_mask, labels = (
+            batch["embeddings"],
+            batch["attention_mask"],
+            batch["labels"],
+        )
+        outputs = model(inputs_embeds=embeddings, attention_mask=attention_mask)
+    else:
+        raise ValueError("Batch must contain either 'input_ids' or 'embeddings'")
 
-    optimizer.zero_grad()
-    logits = model(inputs, attention_mask=attention_masks).logits
+    logits = outputs.logits
     preds = logits.argmax(dim=1)
 
     loss_value = loss(logits, labels)
     loss_value.backward()
-    
+
     if grad_scaler:
         grad_scaler(model=model)
     optimizer.step()
     if scheduler:
         scheduler.step()
-
+    optimizer.zero_grad()
     return loss_value.item(), preds.detach(), labels
 
 
-def train_epoch(epoch, model, dataloader, loss, optimizer, scheduler, grad_scaler, device, update_step=10):
+def train_epoch(
+    epoch,
+    model,
+    dataloader,
+    loss,
+    optimizer,
+    scheduler,
+    grad_scaler,
+    device,
+    augmenter=None,
+    update_step=10,
+):
     tqdm_params = setup_tqdm(total=len(dataloader), desc=f"Epoch: {epoch}")
     with tqdm(**tqdm_params) as progress_bar:
         steps_since_update = 0
         total_loss, total_corrects, total_samples = 0, 0, 0
 
         for batch in dataloader:
+            batch["input_ids"] = batch["input_ids"].to(device)
+            batch["attention_mask"] = batch["attention_mask"].to(device)
+            batch["labels"] = batch["labels"].to(device)
+
+            if augmenter is not None:
+                batch = augmenter(batch)  # Augment the batch
+
+            # For all batches (augmented or not), train it
             loss_value, preds, labels = train_batch(
-                batch=batch, model=model, loss=loss, optimizer=optimizer, scheduler=scheduler, grad_scaler=grad_scaler, device=device,
+                batch=batch,
+                model=model,
+                loss=loss,
+                optimizer=optimizer,
+                scheduler=scheduler,
+                grad_scaler=grad_scaler,
             )
-            total_loss += loss_value
+            total_loss += loss_value * len(labels)
             total_corrects += (preds == labels).sum().item()
             total_samples += len(labels)
 
-            avg_loss = total_loss / (total_samples / len(labels))
+            avg_loss = total_loss / total_samples
             avg_accuracy = total_corrects / total_samples
             steps_since_update += 1
             if steps_since_update >= update_step:
@@ -93,14 +120,19 @@ def train_model(config):
     components = load_components(config)
 
     model = components["model"]
+    perturbation_tokenizer = components["perturbation_tokenizer"]
+    augmenter = components["augmenter"]
     optimizer = components["optimizer"]
     scheduler = components["scheduler"]
     grad_scaler = components["grad_scaler"]
     loss_function = components["loss_function"]
     train_loader = components["train_loader"]
+    train_dataset = components["train_dataset"]
     valid_dataset = components["valid_dataset"]
     num_labels = components["num_labels"]
     device = components["device"]
+    rng = components["rng"]
+    start_epoch = (components["checkpoint"]["epoch"] + 1) if components["checkpoint"] else 0
 
     checkpoint_dir = config["checkpoint_dir"]
     pred_dir = config["pred_dir"]
@@ -119,7 +151,7 @@ def train_model(config):
     best_val_acc = 0
     epochs_without_improvement = 0
 
-    for epoch in range(config["max_epochs"]):
+    for epoch in range(start_epoch, config["max_epochs"]):
         model.train()
         tr_loss, tr_acc = train_epoch(
             epoch=epoch,
@@ -130,6 +162,7 @@ def train_model(config):
             scheduler=scheduler,
             grad_scaler=grad_scaler,
             device=device,
+            augmenter=augmenter,
             update_step=config["update_step"],
         )
 
@@ -150,9 +183,12 @@ def train_model(config):
                 model=model,
                 dataset=valid_dataset,
                 pred_num_samples=num_samples,
+                cr_num_samples=0,
                 batch_size=config["batch_size"],
                 device=device,
+                warning_as_exception=False,
             )
+
             history[epoch]["val_acc"] = val_acc
             message = (
                 f"Epoch: {epoch:<5} | "
@@ -170,8 +206,9 @@ def train_model(config):
                 "num_labels": num_labels,
                 "model_state_dict": model.state_dict(),
                 "optimizer_state_dict": optimizer.state_dict(),
-                "scheduler_state_dict": None
-                if scheduler is None else scheduler.state_dict(),
+                "scheduler_state_dict": (
+                    None if scheduler is None else scheduler.state_dict()
+                ),
                 "tr_loss": tr_loss,
                 "tr_acc": tr_acc,
                 "val_acc": val_acc,
@@ -207,8 +244,13 @@ def train_model(config):
                     )
                     break
     logging.info("Training completed.")
-    df = pd.DataFrame.from_dict(history, orient="index").reset_index().rename(columns={'index': 'epoch'})
+    df = (
+        pd.DataFrame.from_dict(history, orient="index")
+        .reset_index()
+        .rename(columns={"index": "epoch"})
+    )
     history_csv_path = os.path.join(log_dir, "history.csv")
     df.to_csv(history_csv_path)
     logging.info(f"Training history saved to {history_csv_path}")
+
     return history

@@ -1,0 +1,9 @@
+output_root: outputs/certify
+model_dir: outputs/train/roberta-base.yelp.var_del_optim
+pred_num_samples: 1000
+cr_num_samples: 4000
+cr_kwargs:
+  alpha: 0.05
+  threat_model: edit
+  stat_test: lecuyer
+test_size: 0.2

@@ -1,6 +1,3 @@
-"""
-Certified Robustness to Text Adversarial Attacks by Randomized [MASK] authors authored functions in this file.
-"""
 from typing import List
 
 import numpy as np
@@ -36,7 +33,7 @@ def mask_sentence(
 ) -> List[str]:
     # str --> List[str]
     if tokenization == "split":
-        sentence_in_list = sentence.split()
+        sentence_in_list = sentence.split(" ")
     elif tokenization == "char":
         sentence_in_list = list(sentence)
     else:
