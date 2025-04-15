@@ -1,4 +1,4 @@
-# CERT-ED: Certifiably Robust Text Classification for Edit Distance
+# Edit Distance Certifiably Robust Text Classification
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
